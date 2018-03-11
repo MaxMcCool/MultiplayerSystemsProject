@@ -1,5 +1,6 @@
 #include "MessageIdentifiers.h"
 #include "RakPeerInterface.h"
+#include "RakPeer.h"
 #include "BitStream.h"
 
 #include <iostream>
@@ -7,9 +8,11 @@
 #include <chrono>
 #include <map>
 #include <mutex>
+#include <cstring>
+#include <cstdio>
 
 static unsigned int SERVER_PORT = 65000;
-static unsigned int CLIENT_PORT = 65001;
+static unsigned int CLIENT_PORT = SERVER_PORT+1;
 static unsigned int MAX_CONNECTIONS = 4;
 
 enum NetworkState
@@ -27,12 +30,25 @@ bool isRunning = true;
 RakNet::RakPeerInterface *g_rakPeerInterface = nullptr;
 RakNet::SystemAddress g_serverAddress;
 
+RakNet::Packet* packet;
+
 std::mutex g_networkState_mutex;
 NetworkState g_networkState = NS_Init;
+
+unsigned short g_playersInLobby = 0;
+
+unsigned char packetID;
+unsigned char packetIDReceiver(RakNet::Packet* p);
+
+RakNet::SystemAdress clientID = RakNet::UNASSIGNED_SYSTEM_ADDRESS;
+
+char input[255];
+char message[2048];
 
 enum {
 ID_THEGAME_LOBBY_READY = ID_USER_PACKET_ENUM,
 ID_PLAYER_READY,
+ID_PLAYER_CHAT,
 ID_THEGAME_START, 
  };
 
@@ -46,6 +62,7 @@ enum EPlayerClass
 struct SPlayer
 {
 	std::string m_name;
+	std::string m_messages;
 	unsigned int m_health;
 	EPlayerClass m_class;
 
@@ -60,13 +77,23 @@ struct SPlayer
 		//returns 0 when something is wrong
 		assert(g_rakPeerInterface->Send(&writeBs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, systemAddress, isBroadcast));
 	}
+
+	void Chat()
+	{
+	
+	}
+
+	void PlayerAction()
+	{
+
+	}
 };
 
 std::map<unsigned long, SPlayer> m_players;
 
 SPlayer& GetPlayer(RakNet::RakNetGUID raknetId)
 {
-	unsigned long guid = RakNet::RakNetGUID::ToUint32(packet->guid);
+	unsigned long guid = RakNet::RakNetGUID::ToUint32(raknetId);
 	std::map<unsigned long, SPlayer>::iterator it = m_players.find(guid);
 
 	assert(it != m_players.end());
@@ -124,6 +151,7 @@ void OnLobbyReady(RakNet::Packet* packet)
 	RakNet::RakString userName;
 	bs.Read(userName);
 
+	unsigned long guid = RakNet::RakNetGUID::ToUint32(packet->guid);
 	SPlayer& player = GetPlayer(packet->guid);
 	player.m_name = userName;
 	std::cout << userName.C_String() << " aka " << player.m_name.c_str() << " IS READY!!!!!" << std::endl;
